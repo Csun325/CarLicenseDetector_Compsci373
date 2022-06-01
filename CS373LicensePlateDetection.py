@@ -97,8 +97,22 @@ def main():
 
 
     # STUDENT IMPLEMENTATION here
+    
+    #conversion to greyscale
+    
+    px_array = computeRGBToGreyscale(px_array_r, px_array_g, px_array_b, image_width, image_height)
 
-    px_array = px_array_r
+    #contrast stretching
+    px_array = scaleTo0And255AndQuantize(px_array, image_width, image_height)
+
+    #Filtering to detect high contrast regions (computing standard deviation in 5x5 pixel neighbourhood)
+
+
+    #Thresholding for segmentation (high contrast as binary image. note: good threshold = 150)
+    #Morphological operations (several 3x3 dilation then several 3x3 erosion to get 'blob' region)
+    #Connected component analysis (find largest connected object or ... analyse the aspect ratio of bounding box and look for largest component there. Width/Height range between 1.5 and 5)
+    #Extract bounding box by looping over image and look for maximum x and y coordinates
+
 
     # compute a dummy bounding box centered in the middle of the input image, and with as size of half of width and height
     center_x = image_width / 2.0
@@ -128,6 +142,49 @@ def main():
     if SHOW_DEBUG_FIGURES:
         # plot the current figure
         pyplot.show()
+
+def computeRGBToGreyscale(pixel_array_r, pixel_array_g, pixel_array_b, image_width, image_height):
+    
+    greyscale_pixel_array = createInitializedGreyscalePixelArray(image_width, image_height)
+    
+    # STUDENT CODE HERE
+    for h in range(image_height):
+        for w in range (image_width):
+            gVal = round(0.299 * pixel_array_r[h][w] + 0.587 * pixel_array_g[h][w] + 0.114 * pixel_array_b[h][w])
+            
+            greyscale_pixel_array[h][w] = gVal
+    return greyscale_pixel_array
+
+
+
+def scaleTo0And255AndQuantize(pixel_array, image_width, image_height):
+    result = createInitializedGreyscalePixelArray(image_width, image_height)
+    fLow = 255
+    fHigh = 0
+    for i in pixel_array:
+        for j in i:
+            num = j
+            if num < fLow:
+                fLow = num
+            if num > fHigh:
+                fHigh = num
+   
+    st = 255
+    if fHigh - fLow == 0:
+        st = 1
+    else:
+        st= 255/(fHigh - fLow)
+    
+    for h in range(image_height):
+        for w in range(image_width):
+            sOut = round((pixel_array[h][w] - fLow) * st)
+            if sOut < 0:
+                result[h][w] = 0
+            elif sOut > 255:
+                result[h][w] = 255
+            else:
+                result[h][w] = sOut
+    return result
 
 
 if __name__ == "__main__":
