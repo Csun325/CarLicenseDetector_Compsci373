@@ -106,7 +106,7 @@ def main():
     px_array = scaleTo0And255AndQuantize(px_array, image_width, image_height)
 
     #Filtering to detect high contrast regions (computing standard deviation in 5x5 pixel neighbourhood)
-
+    px_array = computeStandardDeviationImage5x5(px_array, image_width, image_height)
 
     #Thresholding for segmentation (high contrast as binary image. note: good threshold = 150)
     #Morphological operations (several 3x3 dilation then several 3x3 erosion to get 'blob' region)
@@ -147,7 +147,6 @@ def computeRGBToGreyscale(pixel_array_r, pixel_array_g, pixel_array_b, image_wid
     
     greyscale_pixel_array = createInitializedGreyscalePixelArray(image_width, image_height)
     
-    # STUDENT CODE HERE
     for h in range(image_height):
         for w in range (image_width):
             gVal = round(0.299 * pixel_array_r[h][w] + 0.587 * pixel_array_g[h][w] + 0.114 * pixel_array_b[h][w])
@@ -186,6 +185,31 @@ def scaleTo0And255AndQuantize(pixel_array, image_width, image_height):
                 result[h][w] = sOut
     return result
 
+
+def computeStandardDeviationImage5x5(pixel_array, image_width, image_height):
+    
+    result = createInitializedGreyscalePixelArray(image_width, image_height, 0.0)
+    
+    for h in range(2, image_height-2):
+        for w in range(2, image_width-2):
+            
+            output_pixel = 0.0
+            sumVal = 0.0
+            topMost = pixel_array[h-2][w-2 : w+3]
+            top = pixel_array[h-1][w-2 : w+3]
+            middle = pixel_array[h][w-2 : w+3]
+            bottom = pixel_array[h+1][w-2 : w+3]
+            bottomMost = pixel_array[h+2][w-2 : w+3]
+
+            joinedVals = topMost + top + middle + bottom + bottomMost
+            meanVal = sum(joinedVals)/len(joinedVals)
+            for x in joinedVals:
+                sumVal += math.pow((x - meanVal),2)
+            
+            output_pixel = math.sqrt(sumVal/len(joinedVals))
+            
+            result[h][w] = output_pixel
+    return result
 
 if __name__ == "__main__":
     main()
