@@ -66,7 +66,7 @@ def main():
     SHOW_DEBUG_FIGURES = True
 
     # this is the default input image filename
-    input_filename = "numberplate1.png"
+    input_filename = "numberplate5.png"
 
     if command_line_arguments != []:
         input_filename = command_line_arguments[0]
@@ -99,7 +99,6 @@ def main():
     # STUDENT IMPLEMENTATION here
     
     #conversion to greyscale
-    
     px_array = computeRGBToGreyscale(px_array_r, px_array_g, px_array_b, image_width, image_height)
 
     #contrast stretching
@@ -108,22 +107,31 @@ def main():
     #Filtering to detect high contrast regions (computing standard deviation in 5x5 pixel neighbourhood)
     px_array = computeStandardDeviationImage5x5(px_array, image_width, image_height)
 
-    #Thresholding for segmentation (high contrast as binary image. note: good threshold = 150)
+    #stretch results between 0 and 255 (contrast stretching)
+    px_array = scaleTo0And255AndQuantize(px_array, image_width, image_height)
+
+    #Thresholding for segmentation (high contrast binary image. note: good threshold = 150)
+    px_array = computeThresholdSegmentation(px_array, image_width, image_height, 150)
+
     #Morphological operations (several 3x3 dilation then several 3x3 erosion to get 'blob' region)
-    #Connected component analysis (find largest connected object or ... analyse the aspect ratio of bounding box and look for largest component there. Width/Height range between 1.5 and 5)
-    #Extract bounding box by looping over image and look for maximum x and y coordinates
+    #diliation
+    px_array = computeDilation8Nbh3x3FlatSE(px_array, image_width, image_height)
+    px_array = computeDilation8Nbh3x3FlatSE(px_array, image_width, image_height)
+    px_array = computeDilation8Nbh3x3FlatSE(px_array, image_width, image_height)
+    px_array = computeDilation8Nbh3x3FlatSE(px_array, image_width, image_height)
+    px_array = computeDilation8Nbh3x3FlatSE(px_array, image_width, image_height)
+    #erosion
+    px_array = computeErosion8Nbh3x3FlatSE(px_array, image_width, image_height)
+    px_array = computeErosion8Nbh3x3FlatSE(px_array, image_width, image_height)
+    px_array = computeErosion8Nbh3x3FlatSE(px_array, image_width, image_height)
+    px_array = computeErosion8Nbh3x3FlatSE(px_array, image_width, image_height)
+    px_array = computeErosion8Nbh3x3FlatSE(px_array, image_width, image_height)
+    
+    #Connected component analysis
+    (px_array, IDmapping) = computeConnectedComponentLabeling(px_array, image_width, image_height)
 
-
-    # compute a dummy bounding box centered in the middle of the input image, and with as size of half of width and height
-    center_x = image_width / 2.0
-    center_y = image_height / 2.0
-    bbox_min_x = center_x - image_width / 4.0
-    bbox_max_x = center_x + image_width / 4.0
-    bbox_min_y = center_y - image_height / 4.0
-    bbox_max_y = center_y + image_height / 4.0
-
-
-
+    #find liscese and compute bounding box
+    (bbox_min_y, bbox_max_y, bbox_min_x, bbox_max_x) = computeLargestComponentRatio(px_array, image_width, image_height, IDmapping)
 
 
     # Draw a bounding box as a rectangle into the input image
@@ -144,17 +152,12 @@ def main():
         pyplot.show()
 
 def computeRGBToGreyscale(pixel_array_r, pixel_array_g, pixel_array_b, image_width, image_height):
-    
     greyscale_pixel_array = createInitializedGreyscalePixelArray(image_width, image_height)
-    
     for h in range(image_height):
         for w in range (image_width):
             gVal = round(0.299 * pixel_array_r[h][w] + 0.587 * pixel_array_g[h][w] + 0.114 * pixel_array_b[h][w])
-            
             greyscale_pixel_array[h][w] = gVal
     return greyscale_pixel_array
-
-
 
 def scaleTo0And255AndQuantize(pixel_array, image_width, image_height):
     result = createInitializedGreyscalePixelArray(image_width, image_height)
@@ -185,11 +188,8 @@ def scaleTo0And255AndQuantize(pixel_array, image_width, image_height):
                 result[h][w] = sOut
     return result
 
-
 def computeStandardDeviationImage5x5(pixel_array, image_width, image_height):
-    
     result = createInitializedGreyscalePixelArray(image_width, image_height, 0.0)
-    
     for h in range(2, image_height-2):
         for w in range(2, image_width-2):
             
@@ -207,9 +207,181 @@ def computeStandardDeviationImage5x5(pixel_array, image_width, image_height):
                 sumVal += math.pow((x - meanVal),2)
             
             output_pixel = math.sqrt(sumVal/len(joinedVals))
+            result[h][w] = output_pixel
+    return result
+
+def computeThresholdSegmentation(pixel_array, image_width, image_height, threshold):
+    result = createInitializedGreyscalePixelArray(image_width, image_height, 0.0)
+    for h in range(image_height):
+        for w in range(image_width):
+            output_pixel = 0.0
+            current_pixel = pixel_array[h][w]
+            if current_pixel >= threshold:
+                output_pixel = 255
+            else:
+                output_pixel = 0.0
             
             result[h][w] = output_pixel
     return result
+
+def computeDilation8Nbh3x3FlatSE(pixel_array, image_width, image_height):
+    result = createInitializedGreyscalePixelArray(image_width, image_height)
+    maxLength = image_width + 2
+    maxHeight = image_height + 2
+    copied_array = createInitializedGreyscalePixelArray(maxLength, maxHeight)
+    for y in range(1, maxHeight-1):
+        for x in range(1, maxLength-1):
+            copied_array[y][x] = pixel_array[y-1][x-1]
+    
+    for h in range(1, maxHeight-1):
+        for w in range(1, maxLength-1):
+            if copied_array[h][w] >= 1:
+                result = computeDilationNeighbour(h-1, w-1, result, image_height, image_width)
+    
+
+    return result
+    
+def computeDilationNeighbour(h, w, result, height, width):
+    if h-1 >= 0 and w-1 >=0:
+        result[h-1][w-1] = 1
+    if h-1 >= 0 and w >=0:
+        result[h-1][w] = 1
+    if h-1 >= 0 and w+1 < width:
+        result[h-1][w+1] = 1
+    if h >= 0 and w-1 >=0:
+        result[h][w-1] = 1
+    if h >= 0 and w >=0:
+        result[h][w] = 1
+    if h >= 0 and w+1 < width:
+        result[h][w+1] = 1
+    if h+1 < height and w-1 >=0:
+        result[h+1][w-1] = 1
+    if h+1 < height and w >=0:
+        result[h+1][w] = 1
+    if h+1 < height and w+1 < width:
+        result[h+1][w+1] = 1
+
+    return result    
+
+
+
+def computeErosion8Nbh3x3FlatSE(pixel_array, image_width, image_height):
+    result = createInitializedGreyscalePixelArray(image_width, image_height)
+    maxLength = image_width + 2
+    maxHeight = image_height + 2
+    copied_array = createInitializedGreyscalePixelArray(maxLength, maxHeight)
+    for y in range(1, maxHeight-1):
+        for x in range(1, maxLength-1):
+            copied_array[y][x] = pixel_array[y-1][x-1]
+    
+    for h in range(1, maxHeight-1):
+        for w in range(1, maxLength-1):
+            if copied_array[h][w] >= 1:
+                output_pixel = computeErosionNeighbour(h, w, copied_array)
+                result[h-1][w-1] = output_pixel  
+    return result
+    
+def computeErosionNeighbour(h, w, pixel_array):
+    topleft = pixel_array[h-1][w-1]
+    top = pixel_array[h-1][w]
+    topright = pixel_array[h-1][w+1]
+    left = pixel_array[h][w-1]
+    right = pixel_array[h][w+1]
+    bottomleft = pixel_array[h+1][w-1]
+    bottom = pixel_array[h+1][w]
+    bottomright =  pixel_array[h+1][w+1]
+    
+    if topleft >= 1 and top >= 1 and topright >= 1 and left >= 1 and right >= 1 and bottomleft >= 1 and bottom >= 1 and bottomright >= 1:
+        return 1
+    return 0
+
+class Queue:
+    def __init__(self):
+        self.items = []
+
+    def isEmpty(self):
+        return self.items == []
+
+    def enqueue(self, item):
+        self.items.insert(0,item)
+
+    def dequeue(self):
+        return self.items.pop()
+
+    def size(self):
+        return len(self.items)
+
+def computeConnectedComponentLabeling(pixel_array, image_width, image_height):
+    result = createInitializedGreyscalePixelArray(image_width, image_height)
+    visited = createInitializedGreyscalePixelArray(image_width, image_height)
+    currentLabel=1
+    labelCount = 0
+    diction = {}
+    
+    for h in range(image_height):
+        for w in range(image_width):
+            if pixel_array[h][w] >= 1 and visited[h][w] == 0:
+                q = Queue()
+                q.enqueue((h,w))
+                visited[h][w] = 1
+
+                while q.isEmpty() == False:
+                    (y,x) = q.dequeue()
+                    result[y][x] = currentLabel
+                    labelCount +=1
+                    #top
+                    if y-1 >= 0:
+                        if pixel_array[y-1][x] >= 1 and visited[y-1][x] == 0:
+                            q.enqueue((y-1,x))
+                            visited[y-1][x] = 1
+                    #bottom
+                    if y+1 < image_height:
+                        if pixel_array[y+1][x] >= 1 and visited[y+1][x] == 0:
+                            q.enqueue((y+1,x))
+                            visited[y+1][x] = 1                                 
+                    #left
+                    if x-1 >= 0:
+                        if pixel_array[y][x-1] >= 1 and visited[y][x-1] == 0:
+                            q.enqueue((y,x-1))
+                            visited[y][x-1] = 1
+                    #right
+                    if x+1 < image_width:
+                        if pixel_array[y][x+1] >= 1 and visited[y][x+1] == 0:
+                            q.enqueue((y,x+1))
+                            visited[y][x+1] = 1
+                            
+                diction[currentLabel] = labelCount
+                labelCount=0
+                currentLabel +=1
+    return (result, diction)
+                
+def computeLargestComponentRatio(pixel_array, image_width, image_height, diction):
+    sorted_map = sorted(diction.items(), key=lambda x: x[1], reverse=True)
+    for key in sorted_map:
+        minHeight = image_height
+        maxHeight = 0.0
+        minWidth = image_width
+        maxWidth = 0.0
+
+        for h in range(image_height):
+            for w in range(image_width):
+                if pixel_array[h][w] == key[0]:
+                    if h < minHeight:
+                        minHeight = h
+                    if h > maxHeight:
+                        maxHeight = h
+                    if w < minWidth:
+                        minWidth = w
+                    if w > maxWidth:
+                        maxWidth = w
+
+        diffHeight = maxHeight - minHeight
+        diffWidth = maxWidth - minWidth
+        ratio = diffWidth/diffHeight
+        # check if ratio is within range
+        if ratio >= 1.5 and ratio < 5:
+            return(minHeight, maxHeight, minWidth, maxWidth)
+    return (minHeight, maxHeight, minWidth, maxWidth)
 
 if __name__ == "__main__":
     main()
